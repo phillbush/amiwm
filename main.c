@@ -64,7 +64,6 @@ static int signalled=0, forcemoving=0;
 static int initting=0;
 static int ignore_badwindow=0;
 static Window *checkwins;
-static int shape_event_base, shape_error_base;
 static int server_grabs=0;
 
 static char **main_argv;
@@ -674,6 +673,7 @@ static void cleanup()
 
 int main(int argc, char *argv[])
 {
+  int shape_event_base, shape_error_base;
   int x_fd, sc;
   static Argtype array[3];
   struct RDArgs *ra;
