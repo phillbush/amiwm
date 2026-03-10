@@ -4,6 +4,19 @@
 #include "icon.h"
 #include "drawinfo.h"
 
+typedef struct {
+  Atom name;
+  Window frame;
+  int x, y, width, height;
+} Monitor;
+
+typedef struct {
+  Window checkwin;
+  Window root;
+  Monitor *monitors;
+  int nmonitors;
+} XScreen;
+
 /*
  * Struct _Scrn - virtual desktop screen
  *
@@ -18,6 +31,7 @@
 
 typedef struct _Scrn {
   struct _Scrn *behind, *upfront;
+  Monitor *monitor;
   Window root, back, inputbox;
   Colormap cmap;
   Visual *visual;

@@ -28,6 +28,7 @@ AC_CHECK_HEADERS(fcntl.h limits.h sys/time.h sys/types.h unistd.h sys/select.h s
 ac_save_CPPFLAGS="$CPPFLAGS"
 CPPFLAGS="$X_CFLAGS $CPPFLAGS"
 AC_CHECK_HEADERS(X11/extensions/shape.h)
+AC_CHECK_HEADERS(X11/extensions/Xrandr.h)
 CPPFLAGS="$ac_save_CPPFLAGS"
 
 AC_C_CONST
@@ -76,6 +77,14 @@ if test "x$ac_cv_header_X11_extensions_shape_h" = xyes; then
   ac_save_LIBS="$LIBS"
   LIBS="$X_LIBS $X_PRE_LIBS $XT_LIB_KLUDGE -lXext -lXmu -lX11 $X_EXTRA_LIBS $LIBS"
   AC_CHECK_FUNC(XShapeQueryExtension, AC_DEFINE([HAVE_XSHAPE],1,[Define this if your Xlib supports the SHAPE X server extension.]))
+  LIBS="$ac_save_LIBS"
+else
+  :
+fi
+if test "x$ac_cv_header_X11_extensions_Xrandr_h" = xyes; then
+  ac_save_LIBS="$LIBS"
+  LIBS="$X_LIBS $X_PRE_LIBS $XT_LIB_KLUDGE -lXrandr -lXext -lXmu -lX11 $X_EXTRA_LIBS $LIBS"
+  AC_CHECK_FUNC(XRRQueryExtension, AC_DEFINE([HAVE_XRANDR],1,[Define this if your Xlib supports the RANDR X server extension.]))
   LIBS="$ac_save_LIBS"
 else
   :

@@ -9,6 +9,9 @@
 #ifdef HAVE_X11_EXTENSIONS_SHAPE_H
 #include <X11/extensions/shape.h>
 #endif
+#ifdef HAVE_X11_EXTENSIONS_XRANDR_H
+#include <X11/extensions/Xrandr.h>
+#endif
 #ifdef AMIGAOS
 #include <x11/xtrans.h>
 #endif
@@ -54,16 +57,17 @@
 
 Display *dpy = NULL;
 Client *activeclient=NULL;
-Bool shape_extn=False;
+Bool randr_extn=False, shape_extn=False;
 char *x_server=NULL;
 XContext client_context, screen_context, icon_context, menu_context, vroot_context;
 char *progname;
 Cursor wm_curs;
 
+extern XScreen *x_screens;
+
 static int signalled=0, forcemoving=0;
 static int initting=0;
 static int ignore_badwindow=0;
-static Window *checkwins;
 static int server_grabs=0;
 
 static char **main_argv;
@@ -629,6 +633,62 @@ static void instcmap(Colormap c)
   XInstallColormap(dpy, (c == None) ? scr->cmap : c);
 }
 
+static void set_monitors(int screen_num)
+{
+  for (int mon = 0; mon < x_screens[screen_num].nmonitors; mon++) {
+    if (x_screens[screen_num].monitors[mon].frame != None)
+      XDestroyWindow(dpy, x_screens[screen_num].monitors[mon].frame);
+  }
+  x_screens[screen_num].nmonitors = 0;
+  free(x_screens[screen_num].monitors);
+  x_screens[screen_num].monitors = NULL;
+
+#ifdef HAVE_XRANDR
+  if (randr_extn) {
+    XRRMonitorInfo *infos = XRRGetMonitors(
+      dpy, RootWindow(dpy, screen_num), True,
+      &x_screens[screen_num].nmonitors
+    );
+
+    if (infos != NULL && x_screens[screen_num].nmonitors > 0) {
+      x_screens[screen_num].monitors = calloc(
+        x_screens[screen_num].nmonitors,
+        sizeof(*x_screens[screen_num].monitors)
+      );
+      for (int mon = 0; mon < x_screens[screen_num].nmonitors; mon++) {
+        x_screens[screen_num].monitors[mon] = (Monitor){
+          .name = infos[mon].name,
+          .x = infos[mon].x,
+          .y = infos[mon].y,
+          .width = infos[mon].width,
+          .height = infos[mon].height,
+          .frame = XCreateWindow(dpy, RootWindow(dpy, screen_num),
+                                 infos[mon].x, infos[mon].y,
+                                 infos[mon].width, infos[mon].height, 0,
+                                 CopyFromParent, InputOutput, CopyFromParent,
+                                 0, NULL),
+        };
+      }
+    }
+  }
+#endif
+
+  x_screens[screen_num].nmonitors = 1;
+  x_screens[screen_num].monitors = malloc(sizeof(*x_screens[screen_num].monitors));
+  x_screens[screen_num].monitors[0] = (Monitor){
+    .name = None,
+    .x = 0,
+    .y = 0,
+    .width = DisplayWidth(dpy, screen_num),
+    .height = DisplayHeight(dpy, screen_num),
+    .frame = XCreateWindow(
+      dpy, RootWindow(dpy, screen_num),
+      0, 0, DisplayWidth(dpy, screen_num), DisplayHeight(dpy, screen_num), 0,
+      CopyFromParent, InputOutput, CopyFromParent, 0, NULL
+    ),
+  };
+}
+
 static void update_clock(void *dontcare)
 {
   Scrn *scr;
@@ -646,15 +706,19 @@ static void update_clock(void *dontcare)
 
 static void cleanup()
 {
-  int sc;
   extern void free_prefs();
   struct coevent *e;
   flushmodules();
   flushclients();
   scr = get_front_scr();
-  for(sc=0; checkwins!=NULL && sc<ScreenCount(dpy); sc++)
-    XDestroyWindow(dpy, checkwins[sc]);
-  free(checkwins);
+  for (int sc=0; x_screens!=NULL && sc<ScreenCount(dpy); sc++) {
+    for (int mon = 0; mon < x_screens[sc].nmonitors; mon++)
+      if (x_screens[sc].monitors[mon].frame != None)
+        XDestroyWindow(dpy, x_screens[sc].monitors[mon].frame);
+    XDestroyWindow(dpy, x_screens[sc].checkwin);
+    free(x_screens[sc].monitors);
+  }
+  free(x_screens);
   while(scr)
     closescreen();
   free_prefs();
@@ -673,8 +737,8 @@ static void cleanup()
 
 int main(int argc, char *argv[])
 {
-  int shape_event_base, shape_error_base;
-  int x_fd, sc;
+  int shape_event_base, randr_event_base;
+  int x_fd;
   static Argtype array[3];
   struct RDArgs *ra;
   XButtonEvent last_press = {0};
@@ -729,14 +793,29 @@ int main(int argc, char *argv[])
   initting = 1;
   XSetErrorHandler(handler);
 
+#ifdef HAVE_XRANDR
+  randr_extn = XRRQueryExtension(dpy, &randr_event_base, &(int){0});
+#endif
 #ifdef HAVE_XSHAPE
-  if(XShapeQueryExtension(dpy, &shape_event_base, &shape_error_base))
-    shape_extn = 1;
+  shape_extn = XShapeQueryExtension(dpy, &shape_event_base, &(int){0});
 #endif
 
   XSelectInput(dpy, DefaultRootWindow(dpy), SubstructureRedirectMask);
   XSync(dpy, False);
   XSelectInput(dpy, DefaultRootWindow(dpy), NoEventMask);
+
+  x_screens = calloc(ScreenCount(dpy), sizeof(*x_screens));
+  for (int sc = 0; sc < ScreenCount(dpy); sc++) {
+    x_screens[sc].root = RootWindow(dpy, sc);
+    x_screens[sc].checkwin = XCreateSimpleWindow(
+      dpy, x_screens[sc].root, 0, 0, 1, 1, 1, 1, 1
+    );
+#ifdef HAVE_XRANDR
+    if (randr_extn)
+      XRRSelectInput(dpy, x_screens[sc].root, RRScreenChangeNotifyMask);
+#endif
+    set_monitors(sc);
+  }
 
   init_modules();
   read_rc_file(array[0].ptr, !array[2].num);
@@ -759,16 +838,13 @@ int main(int argc, char *argv[])
     fprintf(stderr, "%s: child cannot disinherit TCP fd\n", progname);
 #endif
 
-  checkwins = calloc(ScreenCount(dpy), sizeof(*checkwins));
-  for(sc=0; sc<ScreenCount(dpy); sc++) {
-    if(sc==DefaultScreen(dpy) || prefs.manage_all) {
-      Window root = RootWindow(dpy, sc);
-      checkwins[sc] = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 1, 1, 1);
-      setsupports(scr->root, checkwins[sc]);
-      if(!getscreenbyroot(root)) {
+  for (int sc = 0; sc < ScreenCount(dpy); sc++) {
+    if (sc == DefaultScreen(dpy) || prefs.manage_all) {
+      setsupports(x_screens[sc].root, x_screens[sc].checkwin);
+      if(!getscreenbyroot(x_screens[sc].root)) {
 	char buf[64];
 	sprintf(buf, "Screen.%d", sc);
-	openscreen((sc? strdup(buf):"Workbench Screen"), root);
+	openscreen((sc? strdup(buf):"Workbench Screen"), x_screens[sc].root);
       }
     }
   }
@@ -1177,6 +1253,19 @@ int main(int argc, char *argv[])
 	  }
 	  break;
 	}
+#endif
+#ifdef HAVE_XRANDR
+        if (randr_extn && event.type == randr_event_base + RRScreenChangeNotify) {
+          XRRUpdateConfiguration(&event);
+          XRRScreenChangeNotifyEvent *xrrev = (void *)&event;
+          for (int sc = 0; sc < ScreenCount(dpy); sc++) {
+            if (x_screens[sc].root == xrrev->root) {
+              set_monitors(sc);
+              break;
+            }
+          }
+          break;
+        }
 #endif
 	fprintf(stderr, "%s: got unexpected event type %d.\n",
 		progname, event.type);

@@ -26,6 +26,8 @@ extern void createmenubar();
 extern void reparent(Client *);
 
 static Scrn *_front = NULL;
+
+XScreen *x_screens = NULL;
 Scrn *scr = NULL;
 
 /*
@@ -236,6 +238,10 @@ Scrn *openscreen(char *deftitle, Window root)
   s->visual = attr.visual;
   s->number = XScreenNumberOfScreen(attr.screen);
   s->inputbox = None;
+  s->monitor = &x_screens[s->number].monitors[0];
+  s->width = s->monitor->width;
+  s->height = s->monitor->height;
+  s->y = 0;
 
   init_dri(&s->dri, dpy, s->root, s->cmap, True);
 
@@ -246,8 +252,8 @@ Scrn *openscreen(char *deftitle, Window root)
   swa.border_pixel = BlackPixel(dpy, DefaultScreen(dpy));
 
   s->back = XCreateWindow(dpy, root,
-			  -prefs.borderwidth, (s->y=0)-prefs.borderwidth,
-			  s->width = attr.width, s->height = attr.height,
+			  -prefs.borderwidth, -prefs.borderwidth,
+			  s->width, s->height,
 			  s->bw=prefs.borderwidth, CopyFromParent,
 			  InputOutput, CopyFromParent,
 			  CWBackPixel|CWOverrideRedirect|CWColormap|CWCursor|
