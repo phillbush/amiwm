@@ -668,8 +668,12 @@ static void set_monitors(int screen_num)
                                  CopyFromParent, InputOutput, CopyFromParent,
                                  0, NULL),
         };
+        XMapRaised(dpy, x_screens[screen_num].monitors[mon].frame);
       }
+      XRRFreeMonitors(infos);
+      return;
     }
+    XRRFreeMonitors(infos);
   }
 #endif
 
@@ -687,6 +691,7 @@ static void set_monitors(int screen_num)
       CopyFromParent, InputOutput, CopyFromParent, 0, NULL
     ),
   };
+  XMapRaised(dpy, x_screens[screen_num].monitors[0].frame);
 }
 
 static void update_clock(void *dontcare)
