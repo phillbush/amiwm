@@ -7,6 +7,7 @@
 typedef struct {
   Atom name;
   Window frame;
+  Window root;
   int x, y, width, height;
 } Monitor;
 

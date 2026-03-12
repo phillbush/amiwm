@@ -27,7 +27,7 @@ extern void reparent(Client *);
 
 static Scrn *_front = NULL;
 
-XScreen *x_screens = NULL;
+extern XScreen *x_screens;
 Scrn *scr = NULL;
 
 /*

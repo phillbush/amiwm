@@ -63,7 +63,7 @@ XContext client_context, screen_context, icon_context, menu_context, vroot_conte
 char *progname;
 Cursor wm_curs;
 
-extern XScreen *x_screens;
+XScreen *x_screens = NULL;
 
 static int signalled=0, forcemoving=0;
 static int initting=0;
@@ -655,7 +655,7 @@ static void set_monitors(int screen_num)
 #ifdef HAVE_XRANDR
   if (randr_extn) {
     XRRMonitorInfo *infos = XRRGetMonitors(
-      dpy, RootWindow(dpy, screen_num), True,
+      dpy, x_screen->root, True,
       &x_screen->nmonitors
     );
 
@@ -666,6 +666,7 @@ static void set_monitors(int screen_num)
       );
       for (int mon = 0; mon < x_screen->nmonitors; mon++) {
         x_screen->monitors[mon] = (Monitor){
+          .root = x_screen->root,
           .name = infos[mon].name,
           .x = infos[mon].x,
           .y = infos[mon].y,
