@@ -635,63 +635,84 @@ static void instcmap(Colormap c)
 
 static void set_monitors(int screen_num)
 {
-  for (int mon = 0; mon < x_screens[screen_num].nmonitors; mon++) {
-    if (x_screens[screen_num].monitors[mon].frame != None)
-      XDestroyWindow(dpy, x_screens[screen_num].monitors[mon].frame);
-  }
-  x_screens[screen_num].nmonitors = 0;
-  free(x_screens[screen_num].monitors);
-  x_screens[screen_num].monitors = NULL;
+  XScreen *x_screen = &x_screens[screen_num];
+  Monitor *old_monitors = x_screen->monitors;
+  int nold_monitors = x_screen->nmonitors;
 
 #ifdef HAVE_XRANDR
   if (randr_extn) {
     XRRMonitorInfo *infos = XRRGetMonitors(
       dpy, RootWindow(dpy, screen_num), True,
-      &x_screens[screen_num].nmonitors
+      &x_screen->nmonitors
     );
 
-    if (infos != NULL && x_screens[screen_num].nmonitors > 0) {
-      x_screens[screen_num].monitors = calloc(
-        x_screens[screen_num].nmonitors,
-        sizeof(*x_screens[screen_num].monitors)
+    if (infos != NULL && x_screen->nmonitors > 0) {
+      x_screen->monitors = calloc(
+        x_screen->nmonitors,
+        sizeof(*x_screen->monitors)
       );
-      for (int mon = 0; mon < x_screens[screen_num].nmonitors; mon++) {
-        x_screens[screen_num].monitors[mon] = (Monitor){
+      for (int mon = 0; mon < x_screen->nmonitors; mon++) {
+        x_screen->monitors[mon] = (Monitor){
           .name = infos[mon].name,
           .x = infos[mon].x,
           .y = infos[mon].y,
           .width = infos[mon].width,
           .height = infos[mon].height,
-          .frame = XCreateWindow(dpy, RootWindow(dpy, screen_num),
-                                 infos[mon].x, infos[mon].y,
-                                 infos[mon].width, infos[mon].height, 0,
-                                 CopyFromParent, InputOutput, CopyFromParent,
-                                 0, NULL),
         };
-        XMapRaised(dpy, x_screens[screen_num].monitors[mon].frame);
       }
       XRRFreeMonitors(infos);
-      return;
+      goto done;
     }
     XRRFreeMonitors(infos);
   }
 #endif
 
-  x_screens[screen_num].nmonitors = 1;
-  x_screens[screen_num].monitors = malloc(sizeof(*x_screens[screen_num].monitors));
-  x_screens[screen_num].monitors[0] = (Monitor){
+  x_screen->nmonitors = 1;
+  x_screen->monitors = malloc(sizeof(*x_screen->monitors));
+  x_screen->monitors[0] = (Monitor){
     .name = None,
     .x = 0,
     .y = 0,
     .width = DisplayWidth(dpy, screen_num),
     .height = DisplayHeight(dpy, screen_num),
-    .frame = XCreateWindow(
-      dpy, RootWindow(dpy, screen_num),
-      0, 0, DisplayWidth(dpy, screen_num), DisplayHeight(dpy, screen_num), 0,
-      CopyFromParent, InputOutput, CopyFromParent, 0, NULL
-    ),
   };
-  XMapRaised(dpy, x_screens[screen_num].monitors[0].frame);
+
+done:
+  for (int nmon = 0; nmon < x_screen->nmonitors; nmon++) {
+    int omon;
+    for (omon = 0; omon < nold_monitors; omon++) {
+      if (old_monitors[omon].name == x_screen->monitors[nmon].name) {
+        x_screen->monitors[nmon].frame = old_monitors[omon].frame;
+        XMoveResizeWindow(
+          dpy, x_screen->monitors[nmon].frame,
+          x_screen->monitors[nmon].x, x_screen->monitors[nmon].y,
+          x_screen->monitors[nmon].width, x_screen->monitors[nmon].height
+        );
+        old_monitors[omon].name = None;
+        old_monitors[omon].frame = None;
+        break;
+      }
+    }
+    if (omon >= nold_monitors) {
+      x_screen->monitors[nmon].frame = XCreateWindow(
+        dpy, RootWindow(dpy, screen_num),
+        x_screen->monitors[nmon].x, x_screen->monitors[nmon].y,
+        x_screen->monitors[nmon].width, x_screen->monitors[nmon].height, 0,
+        CopyFromParent, InputOutput, CopyFromParent,
+        CWBackPixel|CWOverrideRedirect,
+        &(XSetWindowAttributes){
+          .override_redirect = True,
+          .background_pixel = BlackPixel(dpy, screen_num),
+        }
+      );
+    }
+    XMapRaised(dpy, x_screen->monitors[nmon].frame);
+  }
+
+  for (int mon = 0; mon < nold_monitors; mon++)
+    if (old_monitors[mon].frame != None)
+      XDestroyWindow(dpy, old_monitors[mon].frame);
+  free(old_monitors);
 }
 
 static void update_clock(void *dontcare)

@@ -67,7 +67,7 @@ void setvirtualroot(Scrn *s)
     if(old_vroot)
       XDeleteProperty(dpy, old_vroot->back, ATOMS[__SWM_VROOT]);
     setvroot(s->root, s);
-    XChangeProperty(dpy, s->back, ATOMS[__SWM_VROOT], XA_WINDOW, 32, PropModeReplace,
+    XChangeProperty(dpy, s->monitor->frame, ATOMS[__SWM_VROOT], XA_WINDOW, 32, PropModeReplace,
 		    (unsigned char *)&(s->back), 1);
   }
 }
@@ -136,6 +136,9 @@ static void scanwins()
       XWindowAttributes attr;
       Window leader = None;
 
+      for (int mon = 0; mon < x_screens[scr->number].nmonitors; mon++)
+        if (wins[i] == x_screens[scr->number].monitors[mon].frame)
+          goto next;
       XGetTransientForHint(dpy, wins[i], &leader);
       if (!scan_dialogs && leader != None)
         continue; /* first pass; skip dialogs */
@@ -171,6 +174,7 @@ static void scanwins()
 	  scr=s;
 	}
       }
+      next:
     }
   }
   XUngrabServer(dpy);
@@ -251,7 +255,7 @@ Scrn *openscreen(char *deftitle, Window root)
   swa.cursor = wm_curs;
   swa.border_pixel = BlackPixel(dpy, DefaultScreen(dpy));
 
-  s->back = XCreateWindow(dpy, root,
+  s->back = XCreateWindow(dpy, s->monitor->frame,
 			  -prefs.borderwidth, -prefs.borderwidth,
 			  s->width, s->height,
 			  s->bw=prefs.borderwidth, CopyFromParent,
@@ -345,6 +349,7 @@ void realizescreens(void)
 {
   scr = get_front_scr();
 
+  XSync(dpy, False);
   do {
     if(!scr->realized) {
       scr->fh = scr->dri.dri_Ascent+scr->dri.dri_Descent;
@@ -385,6 +390,7 @@ void realizescreens(void)
     }
     scr=scr->behind;
   } while(scr != get_front_scr());
+  XSync(dpy, False);
   do {  
     if(!scr->realized) {
       scanwins();
@@ -396,6 +402,7 @@ void realizescreens(void)
     }
     scr=scr->behind;
   } while(scr != get_front_scr());
+  XSync(dpy, False);
 }
 
 Scrn *getscreen(Window w)
