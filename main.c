@@ -633,11 +633,24 @@ static void instcmap(Colormap c)
   XInstallColormap(dpy, (c == None) ? scr->cmap : c);
 }
 
+static Monitor *find_monitor(Monitor *monitors, int nmonitors, Atom name)
+{
+  if (name == None)
+    return NULL;
+  for (int i = 0; i < nmonitors; i++)
+    if (monitors[i].name == name)
+      return &monitors[i];
+  return NULL;
+}
+
 static void set_monitors(int screen_num)
 {
   XScreen *x_screen = &x_screens[screen_num];
   Monitor *old_monitors = x_screen->monitors;
   int nold_monitors = x_screen->nmonitors;
+
+  x_screen->monitors = NULL;
+  x_screen->nmonitors = 0;
 
 #ifdef HAVE_XRANDR
   if (randr_extn) {
@@ -678,26 +691,28 @@ static void set_monitors(int screen_num)
   };
 
 done:
-  for (int nmon = 0; nmon < x_screen->nmonitors; nmon++) {
-    int omon;
-    for (omon = 0; omon < nold_monitors; omon++) {
-      if (old_monitors[omon].name == x_screen->monitors[nmon].name) {
-        x_screen->monitors[nmon].frame = old_monitors[omon].frame;
-        XMoveResizeWindow(
-          dpy, x_screen->monitors[nmon].frame,
-          x_screen->monitors[nmon].x, x_screen->monitors[nmon].y,
-          x_screen->monitors[nmon].width, x_screen->monitors[nmon].height
-        );
-        old_monitors[omon].name = None;
-        old_monitors[omon].frame = None;
-        break;
-      }
-    }
-    if (omon >= nold_monitors) {
-      x_screen->monitors[nmon].frame = XCreateWindow(
+  /* compare new monitor list with old one; check if any monitor remains */
+  for (int mon = 0; mon < x_screen->nmonitors; mon++) {
+    Monitor *known = find_monitor(
+      old_monitors, nold_monitors, x_screen->monitors[mon].name
+    );
+
+    if (known != NULL) {
+      /* monitor already indexed; reuse its frame (adapted to new geometry) */
+      x_screen->monitors[mon].frame = known->frame;
+      XMoveResizeWindow(
+        dpy, x_screen->monitors[mon].frame,
+        x_screen->monitors[mon].x, x_screen->monitors[mon].y,
+        x_screen->monitors[mon].width, x_screen->monitors[mon].height
+      );
+      known->name = None;  /* clean name to not be found again */
+      known->frame = None; /* clean frame to not be destroyed below */
+    } else {
+      /* not indexed; create new frame */
+      x_screen->monitors[mon].frame = XCreateWindow(
         dpy, RootWindow(dpy, screen_num),
-        x_screen->monitors[nmon].x, x_screen->monitors[nmon].y,
-        x_screen->monitors[nmon].width, x_screen->monitors[nmon].height, 0,
+        x_screen->monitors[mon].x, x_screen->monitors[mon].y,
+        x_screen->monitors[mon].width, x_screen->monitors[mon].height, 0,
         CopyFromParent, InputOutput, CopyFromParent,
         CWBackPixel|CWOverrideRedirect,
         &(XSetWindowAttributes){
@@ -706,7 +721,7 @@ done:
         }
       );
     }
-    XMapRaised(dpy, x_screen->monitors[nmon].frame);
+    XMapRaised(dpy, x_screen->monitors[mon].frame);
   }
 
   for (int mon = 0; mon < nold_monitors; mon++)
