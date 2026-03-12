@@ -27,7 +27,7 @@ extern void reparent(Client *);
 
 static Scrn *_front = NULL;
 
-extern XScreen *x_screens;
+XScreen *x_screens = NULL;
 Scrn *scr = NULL;
 
 /*
@@ -222,7 +222,7 @@ void closescreen(void)
   scr=dummy;
 }
 
-Scrn *openscreen(char *deftitle, Window root)
+Scrn *openscreen(char *deftitle, Monitor *monitor)
 {
   Scrn *s;
   XWindowAttributes attr;
@@ -230,19 +230,16 @@ Scrn *openscreen(char *deftitle, Window root)
   XGCValues gcv;
   extern char *label_font_name;
 
-  if(!root)
-    root = DefaultRootWindow(dpy);
-
-  XGetWindowAttributes(dpy, root, &attr);
+  XGetWindowAttributes(dpy, monitor->root, &attr);
 
   s = (Scrn *)calloc(1, sizeof(Scrn));
-  s->root = root;
+  s->root = monitor->root;
   s->cmap = attr.colormap;
   s->depth = attr.depth;
   s->visual = attr.visual;
   s->number = XScreenNumberOfScreen(attr.screen);
   s->inputbox = None;
-  s->monitor = &x_screens[s->number].monitors[0];
+  s->monitor = monitor;
   s->width = s->monitor->width;
   s->height = s->monitor->height;
   s->y = 0;

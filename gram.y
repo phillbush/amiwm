@@ -111,8 +111,16 @@ stmt		: error
 		| SCREENFONT string { default_screenfont = $2; }
 		| ICONFONT string { label_font_name = $2; }
 		| FORCEMOVE forcemove_policy { prefs.forcemove = $2; }
-		| SCREEN string { openscreen($2,DefaultRootWindow(dpy)); }
-		| SCREEN NUMBER string { if(($2==DefaultScreen(dpy)||prefs.manage_all) && $2<ScreenCount(dpy)) openscreen($3,RootWindow(dpy,$2)); }
+		| SCREEN string {
+			for (int sc = 0; sc < ScreenCount(dpy); sc++)
+				for (int mon = 0; mon < x_screens[sc].nmonitors; mon++)
+					openscreen($2, &x_screens[sc].monitors[mon]);
+		}
+		| SCREEN NUMBER string {
+			if (($2==DefaultScreen(dpy)||prefs.manage_all) && $2<ScreenCount(dpy))
+				for (int mon = 0; mon < x_screens[$2].nmonitors; mon++)
+					openscreen($2, &x_screens[$2].monitors[mon]);
+		}
 		| MODULEPATH string { prefs.module_path = $2; }
 		| MODULE string STRING { create_module((get_front_scr() ? get_front_scr()->upfront:NULL), $2, $3); }
 		| MODULE string { create_module((get_front_scr() ? get_front_scr()->upfront:NULL), $2, NULL); }

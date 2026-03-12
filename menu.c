@@ -854,7 +854,7 @@ void menuaction(struct Item *i, struct Item *si)
     break;
   case 2: /* Screens */
     if(item==0) {
-      openscreen("New Screen", DefaultRootWindow(dpy));
+      openscreen("New Screen", scr->monitor);
       realizescreens();
       scr = get_front_scr()->upfront;
       screentoback();

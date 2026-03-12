@@ -148,7 +148,7 @@ void checksizehints(Client *c)
 
 void open_fscrn(Client *c)
 {
-  c->fsscr = scr = openscreen(NULL, scr->root);
+  c->fsscr = scr = openscreen(NULL, scr->monitor);
   c->reparenting = 1;
   XReparentWindow(dpy, c->parent, c->fsscr->back, 0, 0);
   XRaiseWindow(dpy, c->window);

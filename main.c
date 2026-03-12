@@ -63,8 +63,6 @@ XContext client_context, screen_context, icon_context, menu_context, vroot_conte
 char *progname;
 Cursor wm_curs;
 
-XScreen *x_screens = NULL;
-
 static int signalled=0, forcemoving=0;
 static int initting=0;
 static int ignore_badwindow=0;
@@ -886,14 +884,11 @@ int main(int argc, char *argv[])
       if(!getscreenbyroot(x_screens[sc].root)) {
 	char buf[64];
 	sprintf(buf, "Screen.%d", sc);
-	openscreen((sc? strdup(buf):"Workbench Screen"), x_screens[sc].root);
+        for (int mon = 0; mon < x_screens[sc].nmonitors; mon++)
+          openscreen((sc? strdup(buf):"Workbench Screen"), &x_screens[sc].monitors[mon]);
       }
     }
   }
-  /*
-  if(!front)
-    openscreen("Workbench Screen", DefaultRootWindow(dpy));
-    */
   realizescreens();
 
   setfocus(None);

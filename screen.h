@@ -54,11 +54,11 @@ typedef struct _Scrn {
 } Scrn;
 
 extern Scrn *scr;
+extern XScreen *x_screens;
 
 extern Scrn *get_front_scr(void);
 extern Scrn *getscreenbyroot(Window);
-extern Scrn *openscreen(char *, Window);
-extern Scrn *openscreen(char *deftitle, Window root);
+extern Scrn *openscreen(char *deftitle, Monitor *monitor);
 extern void assimilate(Window, int, int);
 extern void click_screendepth(Scrn *s, Time time);
 extern void closescreen(void);
